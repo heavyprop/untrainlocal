@@ -1,0 +1,6 @@
+{
+    "C_Cpp.default.cppStandard": "c++17",
+    "rust-analyzer.linkedProjects": [
+        "apps/search/rust/Cargo.toml"
+    ]
+}

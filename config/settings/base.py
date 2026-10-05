@@ -2,7 +2,7 @@
 
 import os
 
-from config.environment import BASE_DIR, load_environment
+from config.environment import BASE_DIR, load_environment, required
 
 load_environment(os.environ.get("DJANGO_ENV_FILE"))
 
@@ -81,5 +81,6 @@ HOSTING_PUBLISHES_PER_HOUR = 20
 HOSTING_DOWNLOADS_PER_DAY = 100
 HOSTING_TRANSFER_BYTES_PER_DAY = 1024**3
 
-GO_SEARCH_URL = os.environ.get("GO_SEARCH_URL", "http://127.0.0.1:8080/search")
+SEARCH_SERVICE_TOKEN = required("SEARCH_SERVICE_TOKEN")
+SEARCH_URL = os.environ.get("SEARCH_URL", "http://127.0.0.1:8081/search")
 MAILERS = {"default": {"BACKEND": "django.core.mail.backends.console.EmailBackend"}}

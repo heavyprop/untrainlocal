@@ -17,3 +17,4 @@ Desktop.ini
 /staticfiles/
 .ruff_cache/
 .local/
+/apps/search/rust/target/

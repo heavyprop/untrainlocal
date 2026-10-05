@@ -1,6 +1,6 @@
 # Go documentation
 
-The search service is in `apps/search/go/`. Start it there with `go run ./cmd/search` after setting `DATABASE_URL`. Ranking code is in `internal/search/scoring.go`; see [architecture](architecture.md) for the complete module map.
+These are historical Go learning notes. The active search service now uses [Rust and C++](../apps/search/rust/README.md); Go is no longer used by Compose.
 
 ```
 := 

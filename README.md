@@ -1,13 +1,19 @@
 # UnTrainable
 
-Django discussion site, Go search, and private project hosting with Safe CLI.
+Django discussion site, Rust/C++ search, and private project hosting with Safe CLI.
 
 ## Install once
 
 1. Install [Git](https://git-scm.com/downloads) and [Docker Desktop](https://docs.docker.com/desktop/setup/install/). On Linux, Docker Engine with the current Compose plugin also works.
 2. Start Docker Desktop and wait until its engine is running. On Windows, use Linux containers and complete Docker Desktop's WSL 2 setup if prompted.
 
-Docker installs Python, Go, PostgreSQL, Redis, and the application dependencies for you. You do not need a local Python environment, a database account, or an `.env` file for this workflow.
+Docker installs Python, Rust, the C++ compiler, ICU, PostgreSQL, Redis, and the application dependencies for you. You do not need a local Python environment or database account. Create a local `.env` containing `SEARCH_SERVICE_TOKEN` before starting Docker.
+
+For a fresh clone, generate a token (for example with `openssl rand -hex 32`) and
+save it as `SEARCH_SERVICE_TOKEN=<generated value>` in `.env`. Keep existing `.env`
+settings when adding it. Compose supplies the same token to Django and Rust; never
+commit the value. Missing or empty tokens prevent startup.
+
 
 ## Clone and start
 
@@ -33,12 +39,34 @@ docker compose exec web python manage.py seed_demo
 
 Posts are marked `[Sample]` and owned by `sample_content`, an account with no usable password. The command uses normal topic classification, so the first run may download the model. Rerunning skips existing sample posts. Existing posts are kept.
 
+## Search service
+
+Compose builds `apps/search/rust/Dockerfile` in release mode and links the C++
+algorithm through CXX. Django calls `http://search:8080/search` using `SEARCH_URL`.
+The search port is internal to Docker; you do not need a separate local Rust process
+or Homebrew packages. Go is no longer part of the running environment.
+
+Rebuild search and start the website in the background:
+
+```bash
+docker compose up -d --build
+```
+
+Check the service from the Django container:
+
+```bash
+docker compose exec web python manage.py shell -c 'from apps.search.client import search_with_service; result = search_with_service("hello", []); assert result is not False, "Search service unavailable"; print(result)'
+```
+
+The response contains ranked IDs and scores. Django loads display fields using
+those IDs. See [Rust/C++ search](apps/search/rust/README.md) for the API and host build.
+
 ## Develop
 
 Keep the terminal running and edit the project in your usual editor:
 
 - Python changes reload Django automatically. Refresh the browser after HTML/CSS/JavaScript changes.
-- Go changes rebuild and restart search automatically.
+- Rust/C++ changes rebuild and restart the search service automatically. Rust fetches candidates; C++ scores them in the same process.
 - Dependency changes rebuild the affected container automatically.
 - Database model changes need a migration; see the commands below.
 
@@ -72,7 +100,7 @@ Admin is at http://localhost:8000/admin/. For discussion-only migrations, use `m
 ## If something needs changing locally
 
 - **Docker cannot connect:** start Docker Desktop. On Linux, make sure your account can run `docker info`.
-- **`--watch` is unrecognized:** update Docker Desktop or the Compose plugin. You can temporarily use `docker compose up --build`; restart/rebuild after Go or dependency changes.
+- **`--watch` is unrecognized:** update Docker Desktop or the Compose plugin. You can temporarily use `docker compose up --build`; restart/rebuild after Rust/C++ or dependency changes.
 - **A port is already in use:** stop the other application, or create a `.env` file in the project root with the overrides below. Keep any existing `.env` entries. Internal service addresses do not need changing.
 
   ```dotenv
@@ -87,7 +115,7 @@ Admin is at http://localhost:8000/admin/. For discussion-only migrations, use `m
 - **Docker runs out of memory or disk:** increase the resources available to Docker Desktop; ML dependencies can require several GB of disk space.
 - **Your editor needs a local Python interpreter:** use the optional [host setup guide](setup.md).
 
-`.env` is ignored by Git. Docker uses local development configuration from `compose.yaml`; `.env.example` is for the optional host setup. Compose uses the port overrides above, but does not switch its internal database connections to your host `.env` values. Existing local uploads are not imported into Docker's upload volume automatically.
+`.env` is ignored by Git. Docker uses local development configuration from `compose.yaml`; `.env.example` is for the optional host setup. Compose uses `SEARCH_SERVICE_TOKEN` and the port overrides above, but does not switch its internal database connections to your host `.env` values. Existing local uploads are not imported into Docker's upload volume automatically.
 
 This is a local development setup. Public deployment requires production settings, credentials, HTTPS, and a production web server; see [security guidance](docs/security-plan.md).
 

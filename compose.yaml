@@ -1,4 +1,5 @@
-# Local development. Start everything with: docker compose up --build --watch
+# Local development: docker compose up --build --watch
+# Rust fetching and C++ scoring run together in the search service on port 8080.
 services:
   web:
     build: .
@@ -10,7 +11,8 @@ services:
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,[::1]
       DATABASE_URL: postgresql://untrainable:development@postgres:5432/untrainable
       REDIS_URL: redis://redis:6379/1
-      GO_SEARCH_URL: http://search:8080/search
+      SEARCH_URL: http://search:8080/search
+      SEARCH_SERVICE_TOKEN: ${SEARCH_SERVICE_TOKEN:?Set SEARCH_SERVICE_TOKEN in .env}
       HOSTING_STORAGE_ROOT: /storage
       WEB_PORT: ${WEB_PORT:-8000}
     ports:
@@ -25,7 +27,7 @@ services:
       redis:
         condition: service_healthy
       search:
-        condition: service_started
+        condition: service_healthy
     develop:
       watch:
         - action: rebuild
@@ -37,17 +39,23 @@ services:
         - action: rebuild
           path: scripts/start_web.sh
   search:
-    build: apps/search/go
+    build: apps/search/rust
+    init: true
     environment:
       DATABASE_URL: postgresql://untrainable:development@postgres:5432/untrainable
       SEARCH_LISTEN_ADDR: 0.0.0.0:8080
+      SEARCH_SERVICE_TOKEN: ${SEARCH_SERVICE_TOKEN:?Set SEARCH_SERVICE_TOKEN in .env}
     depends_on:
       postgres:
         condition: service_healthy
     develop:
       watch:
         - action: rebuild
-          path: apps/search/go
+          path: apps/search/rust
+          ignore:
+            - target/
+            - ALGORITHM/
+            - README.md
   postgres:
     image: postgres:16
     environment:

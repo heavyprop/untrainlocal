@@ -1,10 +1,10 @@
-# Running Python and Go directly (optional)
+# Running Python and Rust/C++ directly (optional)
 
-The recommended Docker workflow is in [README.md](README.md). Use this alternative if you want local Python/Go interpreters for your editor or prefer running the application outside containers. Do not run both workflows on port 8000 at the same time.
+The recommended Docker workflow is in [README.md](README.md). Use this alternative if you want local Python/Rust/C++ tooling for your editor or prefer running the application outside containers. Do not run both workflows on port 8000 at the same time.
 
 ## Fresh-clone setup
 
-Requirements: Python **3.12+**, Go **1.27.1+**, and Docker Compose (or your own PostgreSQL and Redis). Development was verified with Python 3.14.7. Go's version is declared in `apps/search/go/go.mod`.
+Requirements: Python **3.12+**, a current stable Rust toolchain, a C++17 compiler, ICU development libraries, pkg-config, and Docker Compose (or your own PostgreSQL and Redis). See the [search build instructions](apps/search/rust/README.md) for macOS dependencies. Docker builds require no host compiler or ICU installation.
 
 From the repository root:
 
@@ -14,6 +14,7 @@ source .venv/bin/activate
 python -m pip install -r requirements/development.txt
 python -m pip install -e .
 cp .env.example .env
+# Set SEARCH_SERVICE_TOKEN in .env to a random value before continuing.
 docker compose up -d --wait postgres redis
 python manage.py migrate
 python manage.py createsuperuser
@@ -23,14 +24,14 @@ python manage.py runserver
 Open http://127.0.0.1:8000. Normal accounts can also register at `/accounts/`.
 The example configuration uses PostgreSQL on **5433** and Redis on **6380**, bound to localhost. These ports avoid the usual local-service ports. No production data or credentials are needed.
 
-In a second terminal:
+In a second terminal (configure ICU as described in the search build instructions first):
 
 ```bash
 source .venv/bin/activate
 python -m scripts.run_search
 ```
 
-That command loads `.env` and starts Go using the same `DATABASE_URL` as Django. The search service binds to `127.0.0.1:8080`. If it is unavailable, Django falls back to keyword search. Classification still requires the ML dependencies.
+That command loads `.env` and starts Rust/C++ search using the same `DATABASE_URL` as Django. The search service binds to `127.0.0.1:8081`. If it is unavailable, Django falls back to keyword search. Classification still requires the ML dependencies.
 
 The classifier downloads its Sentence Transformers model on first use if it is not cached. To load it before serving requests:
 

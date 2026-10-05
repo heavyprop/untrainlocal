@@ -25,7 +25,7 @@ config/urls.py -> feature urls.py -> view
 
 Discussion creation calls `apps.discussions.services.posts.create_post`, which classifies through recommendations and saves the post. Detail pages query comments through discussion selectors and record engagement through services. Feed selectors reuse discussion query helpers.
 
-Search calls `apps.search.services.search_threads`: classify the query, call Go, then hydrate ranked IDs. Only an unavailable Go service triggers Python fallback tokenization and keyword selection. SQL/scoring runs in Go; Django owns authentication and presentation. Python tokenization and keyword selection run only when Go is unavailable; there is no Python ranking implementation.
+Search calls `apps.search.services.search_threads`: classify the query, call Rust/C++ search, then hydrate ranked IDs. Rust retrieves candidates asynchronously through SeaQuery + SQLx and calls C++ scoring through CXX on a blocking worker. Django owns authentication, blocked-user filtering and presentation. An unavailable or invalid service response triggers Python keyword fallback.
 
 Interest profiles still use the latest 200 interaction records with event decay and retain 100 topics. They are not yet used to rank the homepage. Changing app boundaries did not change the recommendation formula.
 
@@ -38,7 +38,7 @@ This deliberately preserves:
 - Existing `home_*` SQL tables and primary/foreign keys.
 - Historical migration records and relationships inside migrations.
 - Content types, permissions such as `home.change_thread`, and existing assignments.
-- Go's queries against those tables.
+- Search queries against those tables.
 
 There is no runtime `home` or `threads` Python package. Use `apps.discussions.models` for imports and `makemigrations home` for discussion migrations. Do not rename the database label or rewrite applied migrations just to match a directory name.
 
@@ -65,20 +65,26 @@ The standalone CLI package remains separate in `pyproject.toml`; the web app run
 
 `requirements/development.txt` includes the formatter/linter. The unused historical SQLite snapshot is kept locally in `.local/legacy.sqlite3`, outside versioned source; active PostgreSQL and private uploads retain their previous locations.
 
-## Go service
+## Rust/C++ search service
 
 ```text
-apps/search/go/
-  cmd/search/main.go              Process startup
-  internal/search/server.go       HTTP contract
-  internal/search/database.go     Pool and candidate loading
-  internal/search/queries/candidates.sql
-  internal/search/scoring.go      Ranking
-  internal/search/text.go         Tokenization
-  internal/search/models.go       Data structures
+apps/search/rust/
+  Dockerfile                Release build with C++ and ICU
+  build.rs                  CXX compilation and ICU linking
+  src/main.rs               Process startup
+  src/server.rs             POST /search, request limits and errors
+  src/search.rs             Fetching and ranking workflow
+  src/repository.rs         SeaQuery candidate query and engagement counts
+  src/bridge.rs             Shared types and C++ worker call
+  cpp/scoring.cpp           Final ranking
+  cpp/text.cpp              Unicode word matching
+  cpp/metrics.cpp           Tag, engagement and recency calculations
 ```
 
-The SQL is embedded at build time. The service binds to localhost by default. Compose sets `SEARCH_LISTEN_ADDR=0.0.0.0:8080` for internal container traffic without publishing a host port; Django is the authenticated entry point. `scripts/run_search.py` shares `.env` database configuration with Django. SQL and ranking formulas are unchanged by the reorganization.
+Compose sets `SEARCH_LISTEN_ADDR=0.0.0.0:8080` for internal traffic and
+`SEARCH_URL=http://search:8080/search` for Django. The Rust service's host default
+is `127.0.0.1:8081`. It returns ranked IDs and scores; Django fetches display data.
+The old Rust algorithm in `ALGORITHM/` is reference material only.
 
 ## Hosting and CLI
 
@@ -102,10 +108,10 @@ Shared base/navigation/errors/content rendering live in `templates/`. Shared sty
 | `threads/label_classifier.py` / `ml/topic_classifier.py` | `apps/recommendations/classification.py` |
 | `home/views.py` | `apps/feed/views.py`, `apps/search/views.py`, `apps/accounts/views.py` |
 | `home/go_search.py` | `apps/search/client.py` |
-| `home/scoring.py` | Removed; live ranking is in `apps/search/go/internal/search/scoring.go` |
+| `home/scoring.py` | Removed; live ranking is in `apps/search/rust/cpp/scoring.cpp` |
 | `accounts/`, `hosting/` | `apps/accounts/`, `apps/hosting/` |
 | `untrainable/` | `config/` |
-| `Go/` | `apps/search/go/` |
+| `Go/`, `apps/search/go/` | Replaced by `apps/search/rust/` |
 | `model/tags/` | `data/taxonomy/` |
 | `model/model_template.py` | `scripts/classify_text.py` |
 | `documentation/`, root `security.md` | `docs/` |

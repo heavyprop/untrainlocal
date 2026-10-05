@@ -9,13 +9,16 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
-def search_with_go(query, labels):
-    """Return ranked results, or False when Go cannot provide a valid response."""
+def search_with_service(query, labels):
+    """Return Rust/C++ ranked results, or False when the service is unavailable."""
     try:
         request = Request(
-            getattr(settings, "GO_SEARCH_URL", "http://127.0.0.1:8080/search"),
+            getattr(settings, "SEARCH_URL", "http://127.0.0.1:8081/search"),
             data=json.dumps({"query": query, "labels": labels}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {settings.SEARCH_SERVICE_TOKEN}",
+            },
             method="POST",
         )
         with urlopen(request, timeout=20) as response:
@@ -41,5 +44,5 @@ def search_with_go(query, labels):
                 raise ValueError("Invalid search result")
         return result
     except (URLError, OSError, ValueError):
-        logger.exception("Go search unavailable; using Django search")
+        logger.exception("Rust/C++ search unavailable; using Django search")
         return False

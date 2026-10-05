@@ -1,9 +1,10 @@
-"""Load Go-ranked post IDs while preserving their order and scores."""
+"""Load ranked post IDs while preserving their order and scores."""
 
 from apps.discussions.selectors import threads_with_stats
 
 
 def hydrate_ranked_posts(matches):
+
     posts_by_id = threads_with_stats().in_bulk([match["id"] for match in matches])
     posts = []
     for match in matches:

@@ -1,14 +1,14 @@
-"""Keyword-only search used when the Go service is unavailable.
+"""Keyword-only search used when the Rust/C++ service is unavailable.
 
 This intentionally has no ranking formula: matching posts are newest first.
-Tokenization stays here so the healthy Go path does not repeat that work.
+Tokenization stays here so the healthy service path does not repeat that work.
 """
 
 import re
 
 from django.db.models import Q
 
-from apps.discussions.selectors import threads_with_stats
+from apps.discussions.models import Thread
 
 TOKEN_RE = re.compile(r"[a-z0-9+#.]+")
 STOP_WORDS = frozenset(
@@ -28,9 +28,13 @@ def keyword_search(query):
     candidate_filter = Q()
     for term in terms or [query]:
         candidate_filter |= Q(title__icontains=term) | Q(description__icontains=term)
-    posts = list(
-        threads_with_stats()
+
+    post_ids = (
+        Thread.objects.all()
         .filter(candidate_filter)
-        .order_by("-created_at", "-id")[:50]
+        .order_by("-created_at", "-id")
+        .values_list("id", flat=True)[:50]
     )
-    return terms, posts
+
+    matches = [{"id": post_id, "score": 0.0} for post_id in post_ids]
+    return terms, matches 
